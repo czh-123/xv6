@@ -294,6 +294,7 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+  np->mask = p->mask;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -304,6 +305,7 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
+
 
   release(&np->lock);
 
@@ -594,6 +596,18 @@ kill(int pid)
     release(&p->lock);
   }
   return -1;
+}
+
+// get num of UnUsed proc
+int
+getProcNum(void) {
+  int cnt = 0;
+  for (int i = 0; i < NPROC; ++i) {
+    if (proc[i].state != UNUSED) {
+      ++cnt;
+    }
+  }
+  return cnt;
 }
 
 // Copy to either a user address, or kernel address,
