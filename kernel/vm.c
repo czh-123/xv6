@@ -84,8 +84,10 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
     panic("walk");
 
   for(int level = 2; level > 0; level--) {
+    // 得到level对应的9 bits 作为偏移地址在页内寻找 但找到的是 8 bits? 64bits Todo
     pte_t *pte = &pagetable[PX(level, va)];
     if(*pte & PTE_V) {
+      // 先右移10 再左移12？
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
       if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
@@ -143,6 +145,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   if(size == 0)
     panic("mappages: size");
   
+  // va 按照地位算偏移 高位算page Entry
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
@@ -432,3 +435,57 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+void
+vmprint(pagetable_t pagetable) {
+  printf("page table %p\n", pagetable);
+    // 得到level对应的9 bits 作为偏移地址在页内寻找 但找到的是 8 bits? 64bits Todo
+    for (int i = 0; i <= PXMASK; ++i) {
+      pte_t *pte = &pagetable[i];
+      if(*pte & PTE_V) {
+        printf(" ..%d: ", i);
+        printf("pte %p pa %p\n", *pte, PTE2PA(*pte));
+        pagetable_t next_pt = (pagetable_t)PTE2PA(*pte);
+        for (int j = 0; j <= PXMASK; ++j) {
+          pte_t *next_pte = &next_pt[j];
+          if (*next_pte & PTE_V) {
+            printf(" .. ..%d: ", j);
+            printf("pte %p pa %p\n", *next_pte, PTE2PA(*next_pte));
+            pagetable_t final_pt = (pagetable_t)PTE2PA(*next_pte);
+            for (int k = 0; k <= PXMASK; ++k) {
+              pte_t *final_pte = &final_pt[k];
+              if (*final_pte & (PTE_R | PTE_W | PTE_X)) {
+                printf(" .. .. ..%d: ", k);
+                printf("pte %p pa %p\n", *final_pte, PTE2PA(*final_pte));
+              }
+            }
+          }
+        }
+        // vmprint((pagetable_t)PTE2PA(*pte));
+      }
+    }
+}
+
+/*
+pte_t *
+walk(pagetable_t pagetable, uint64 va, int alloc)
+{
+  if(va >= MAXVA)
+    panic("walk");
+
+  for(int level = 2; level > 0; level--) {
+    // 得到level对应的9 bits 作为偏移地址在页内寻找 但找到的是 8 bits? 64bits Todo
+    pte_t *pte = &pagetable[PX(level, va)];
+    if(*pte & PTE_V) {
+      // 先右移10 再左移12？
+      pagetable = (pagetable_t)PTE2PA(*pte);
+    } else {
+      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+        return 0;
+      memset(pagetable, 0, PGSIZE);
+      *pte = PA2PTE(pagetable) | PTE_V;
+    }
+  }
+  return &pagetable[PX(0, va)];
+}
+*/

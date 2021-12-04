@@ -1,0 +1,28 @@
+1, 涉及到只读操作， 且只和本进程相关的的系统调用可以使用shared page来加速
+  或许可以实现sysinfo这种 每次变动对每个进程更新 sysinfo 不过没有太大意义， sysinfo是sys层面的
+  - 对所有进程 映射虚拟地址到同一个物理地址，在该物理地址维护sysinfo信息
+  其他操作 mkdir dup等不能在用户态做，权限问题
+
+2， 涉及到线程内存布局 以及实际的物理内存分配
+一些特定的page 用来保存text data等
+可看 allocprco()
+    从线程池取 然后分配物理内存给trapframe，pageTable
+    proc_pagetable() 为trapframe pageTable建立映射关系(mmappages)
+    设置context(堆栈的寄存器)
+
+
+TODO : 虚拟地址的映射 
+    硬件层面的机制是什么 没看到MMU 或许和risc-v指令集有关?
+
+虚拟地址 物理地址 混杂 硬件怎么区分?
+
+3, 和RISC-V结合
+    利用sysaddr() argint() 读取用户态数据
+
+    得到VMaddress后 查询得到物理地址 根据表示判断物理页面情况
+
+    copyout到用户态
+
+p->pagetable 是操作系统为每个进程维护的页表映射
+    将该进程虚拟地址映射为物理地址
+    虚拟地址的布局规则应该是一样的
