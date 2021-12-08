@@ -25,3 +25,10 @@
 
 epc寄存器 : user的program counter
 ra : return address
+
+
+
+### 
+Todo
+    1 确定一些关键的寄存器作用
+    2 trapframe.S 干了什么
