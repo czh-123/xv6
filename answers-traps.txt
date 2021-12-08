@@ -1,0 +1,27 @@
+1,
+    1 a2 保存13
+    2   26:	45b1                	li	a1,12v   应该是编译器优化 直接算出值存进寄存器
+    3  0000000000000628
+    4  5dc:	70e6                	ld	ra,120(sp) 可能是这条语句 不确定 Todo
+        
+       auipc的作用: auipc rd, immediate    //x[rd] = pc + sext(immediate[31:12] << 12) 
+       auipc ra 0x0 把当前指令pc存储到ra
+       在调用printf时 先sd	ra,24(sp) 函数执行完毕后 ld	ra,24(sp),  因此ra还是也原来存在里边的值 
+       原来的ra值好像会被jalr修改为 38  (Todo 确认 ret ip jalr)
+
+       jalr 把 pc 设置为 x[rs1] + sign-extend(offset)，把计算出的地址的最低有效位设为 0，并将原 pc+4的值写入 f[rd]。 rd 默认为 x1。
+
+
+    5 什么是大尾端 小尾端 : Todo 地址增长顺序不变 但是 00 01 02 03的内容可能会根据大尾端 小尾端不同
+        指针地址 会和大尾端 小尾端有关系吗 : 没有关系 指针地址固定 但是依赖于硬件(?)读取内容
+        risc-v 指令 目标 源
+        sd	ra,8(sp) sd ra到 sp + 8
+    6 
+
+
+
+
+
+
+epc寄存器 : user的program counter
+ra : return address
