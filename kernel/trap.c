@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+// #include <assert.h>
 
 struct spinlock tickslock;
 uint ticks;
@@ -71,7 +72,7 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if (r_scause() == 15 || r_scause() == 13) {
+  } else if (r_scause() == 15) {
     // 确认15 怎么来的  查risc-v表拿到
     // uint64 va=r_stval();
     uint64 va = r_stval();
@@ -107,9 +108,20 @@ cowcopy(uint64 va) {
   }
   va = PGROUNDDOWN(va);
   pagetable_t p = myproc()->pagetable;
+
   pte_t* pte = walk(p, va, 0);
+  if (pte == 0) {
+    return -1;
+  }
   uint64 pa = PTE2PA(*pte);
   uint flags = PTE_FLAGS(*pte);
+
+  // 需要注意
+  /* Todo 为什么这里取掉注释后会直接启动时panic ?  似乎是fork时没有设置这个标
+  if ((flags & PTE_V) == 0) {
+    return -1;
+  }
+  */
 
 
   if(!(flags & PTE_C)) {
@@ -119,33 +131,38 @@ cowcopy(uint64 va) {
   
 
   acquire_globalRef();
-  
+
   int ref = getRefCntWithoutLock(pa);
+  release_globalRef();
+  // assert((ref >= 1));
   if (ref > 1) {
     // ref > 1, alloc a new page
     // !!!!!
-    char* mem = kalloc_nolock();
+    char* mem = kalloc();
     if(mem == 0)
       goto bad;
     memmove(mem, (char*)pa, PGSIZE);
+    // 降低基数
+    uvmunmap(p, va, 1, 1);
     if (mappages(p, va, PGSIZE, (uint64)mem, (flags & (~PTE_C)) | PTE_W) != 0) {
       // 这里会导致死锁 所以需要先release 再 acquire
-      release_globalRef();
+      // release_globalRef();
       kfree(mem);
-      acquire_globalRef();
+      // acquire_globalRef();
       goto bad;
     }
     // refcnt_setter(pa, ref - 1);
-    decrWithoutLock((uint64)mem);
+    // decrWithoutLock((uint64)mem);
+    // 不应该decr / incr 旧的通过uvunmap 新的kalloc
   } else {
     // ref = 1, use this page directly
     *pte = ((*pte) & (~PTE_C)) | PTE_W;
   }
-  release_globalRef();
+  // release_globalRef();
   return 0;
 
   bad:
-  release_globalRef();
+  // release_globalRef();
   return -1;
 }
 

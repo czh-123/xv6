@@ -81,6 +81,21 @@ void initRefCnt() {
 }
 
 void
+incr(uint64 pa) {
+  acquire(&globalRefCnt.lock);
+  globalRefCnt.ref[(pa - KERNBASE)/PGSIZE] += 1;
+  release(&globalRefCnt.lock);
+}
+
+void
+decr(uint64 pa) {
+  acquire(&globalRefCnt.lock);
+  globalRefCnt.ref[(pa - (uint64)KERNBASE)/PGSIZE] -= 1;
+  release(&globalRefCnt.lock);
+}
+
+
+void
 kinit()
 {
   initlock(&globalRefCnt.lock, "gref");

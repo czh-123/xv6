@@ -190,7 +190,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
-    if(do_free){
+    if(do_free) {
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
     }
@@ -330,7 +330,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     pa = PTE2PA(*pte);
 
     // 这样应该就行了?
-    *pte = ((*pte) & (~PTE_W)) | PTE_C;
+    *pte = (((*pte) & (~PTE_W)) | PTE_C) | PTE_V;
   
     flags = PTE_FLAGS(*pte);
 
@@ -395,7 +395,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     if (va0 >= MAXVA)
       return -1;
     if (cowcopy(va0) == -1) {
-      panic("copyout -1");
+      // panic("copyout -1");
       return -1;
     }
     // 不能使用这个pa0得到PTE  没有flag
