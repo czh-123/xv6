@@ -11,6 +11,12 @@ uint ticks;
 
 extern char trampoline[], uservec[], userret[];
 
+extern void acquire_globalRef();
+
+extern void release_globalRef();
+
+extern void* kalloc_nolock();
+
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
@@ -32,7 +38,7 @@ trapinithart(void)
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
-//
+// 识别page fault 并处理
 void
 usertrap(void)
 {
@@ -46,7 +52,7 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
-  
+
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
@@ -65,8 +71,16 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if (r_scause() == 15 || r_scause() == 13) {
+    // 确认15 怎么来的  查risc-v表拿到
+    // uint64 va=r_stval();
+    uint64 va = r_stval();
+    if(cowcopy(va) == -1 ) {
+      p->killed = 1;
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
+    // 怎么识别 page fault
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -82,6 +96,95 @@ usertrap(void)
 
   usertrapret();
 }
+
+
+
+int
+cowcopy(uint64 va) {
+  // 不要>
+  if(va>=MAXVA) {
+      return -1;
+  }
+  va = PGROUNDDOWN(va);
+  pagetable_t p = myproc()->pagetable;
+  pte_t* pte = walk(p, va, 0);
+  uint64 pa = PTE2PA(*pte);
+  uint flags = PTE_FLAGS(*pte);
+
+
+  if(!(flags & PTE_C)) {
+    // printf("not cow\n");
+    return -2; // not cow page
+  }
+  
+
+  acquire_globalRef();
+  
+  int ref = getRefCntWithoutLock(pa);
+  if (ref > 1) {
+    // ref > 1, alloc a new page
+    // !!!!!
+    char* mem = kalloc_nolock();
+    if(mem == 0)
+      goto bad;
+    memmove(mem, (char*)pa, PGSIZE);
+    if (mappages(p, va, PGSIZE, (uint64)mem, (flags & (~PTE_C)) | PTE_W) != 0) {
+      // 这里会导致死锁 所以需要先release 再 acquire
+      release_globalRef();
+      kfree(mem);
+      acquire_globalRef();
+      goto bad;
+    }
+    // refcnt_setter(pa, ref - 1);
+    decrWithoutLock((uint64)mem);
+  } else {
+    // ref = 1, use this page directly
+    *pte = ((*pte) & (~PTE_C)) | PTE_W;
+  }
+  release_globalRef();
+  return 0;
+
+  bad:
+  release_globalRef();
+  return -1;
+}
+
+/*
+int deal_cow_page(pagetable_t pagetable,uint64 va ,int usertrap) {
+
+    if(va>MAXVA) {
+      return -1;
+    }
+    pte_t* pte;
+    
+    if ((pte = walk(pagetable,va,0))==0) {
+      return -1;
+    }
+    
+    if (*pte & PTE_C) {
+	    uint64 old_pa = PTE2PA(*pte);
+	    uint64 flag = PTE_FLAGS(*pte)&(~PTE_C);//清空PTE_C
+	    //encounter a COW page(write to a page with PTE_W clear
+      char *new_pa = kalloc();//new_pa的ref cnt=1
+	    if (new_pa == 0) {
+	      return -1;
+	    }
+      memmove(new_pa,(char *)old_pa, PGSIZE); 
+	    uvmunmap(pagetable,va,1,1);//uvmunmap的alloc参数设置为1 会对old_pa进行kfree old_pa的ref cnt--
+        
+	    if (mappages(pagetable, va, PGSIZE, (uint64)new_pa, flag|PTE_W) < 0) {
+	      uvmunmap(pagetable,va,1,1); 
+	      return -1;
+	    }
+    } else if(usertrap) {
+	    //如果是usertrap中遇到 pagefault 同时不是cow page 那么需要按照普通Page fault处理
+      return -1;
+    }
+
+    return 0;
+}
+*/
+
 
 //
 // return to user space

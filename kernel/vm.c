@@ -6,6 +6,8 @@
 #include "defs.h"
 #include "fs.h"
 
+#include "assert.h"
+
 /*
  * the kernel's page table.
  */
@@ -14,6 +16,10 @@ pagetable_t kernel_pagetable;
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
+
+extern void acquire_globalRef();
+
+extern void release_globalRef();
 
 // Make a direct-map page table for the kernel.
 pagetable_t
@@ -143,13 +149,19 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   if(size == 0)
     panic("mappages: size");
   
+  if (va >= MAXVA) {
+    panic("error in mappages");
+  }
+
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
+      /*
     if(*pte & PTE_V)
       panic("mappages: remap");
+      */
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -303,27 +315,56 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
-  for(i = 0; i < sz; i += PGSIZE){
+  // 看不懂 这里为什么是i 从0开始? 和user内存布局有关? 
+  // 堆 栈内核栈怎么处理？
+  // 内核data text在之前的proc_pagetable() 处理
+  // 寄存器在之后memmove trapframe实现
+  for(i = 0; i < sz; i += PGSIZE) {
+    assert((i % PGSIZE) == 0);
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+
+    // 这样应该就行了?
+    *pte = ((*pte) & (~PTE_W)) | PTE_C;
+  
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+
+
+    if (mappages(new, i, PGSIZE, (uint64)pa, flags) != 0) {
+      panic("error");
       goto err;
+    }
+    acquire_globalRef();
+    incrWithoutLock((uint64)pa);
+    release_globalRef();
+    // incr(pa);
+    // incr(pa);
+    // panic("error22");
+  }
+  return 0;
+  /*
+    // 这里会分配物理内存 并且memmove复制物理内存
+    if((mem = kalloc()) == 0)
+      goto err; 
     memmove(mem, (char*)pa, PGSIZE);
+    // 为什么i 对应va
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
       goto err;
     }
-  }
+   }
   return 0;
+  */
 
  err:
+  // panic("uvmcopy error");
   uvmunmap(new, 0, i / PGSIZE, 1);
+  panic("error");
   return -1;
 }
 
@@ -347,12 +388,28 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
+  // pte_t* pte;
 
-  while(len > 0){
+  while (len > 0) {
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
+    if (va0 >= MAXVA)
       return -1;
+    if (cowcopy(va0) == -1) {
+      panic("copyout -1");
+      return -1;
+    }
+    // 不能使用这个pa0得到PTE  没有flag
+    pa0 = walkaddr(pagetable, va0);
+    if (pa0 == 0)
+      return -1;
+    /*
+    pte = PA2PTE(pa0);
+    if ((*pte & PTE_C)) {
+      if (cowcopy(pa0) < 0) {
+        return -1;
+      }
+    }
+    */
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
