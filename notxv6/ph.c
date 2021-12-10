@@ -12,8 +12,11 @@ struct entry {
   int key;
   int value;
   struct entry *next;
+
 };
 struct entry *table[NBUCKET];
+pthread_mutex_t bucketLock[NBUCKET];
+
 int keys[NKEYS];
 int nthread = 1;
 
@@ -25,6 +28,8 @@ now()
  gettimeofday(&tv, 0);
  return tv.tv_sec + tv.tv_usec / 1000000.0;
 }
+
+// 这里使用链表 是否可以加速?
 
 static void 
 insert(int key, int value, struct entry **p, struct entry *n)
@@ -41,19 +46,24 @@ void put(int key, int value)
 {
   int i = key % NBUCKET;
 
+  // get lock
+  pthread_mutex_lock(&bucketLock[i]);
+
   // is the key already present?
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key)
       break;
   }
-  if(e){
+  if (e) {
     // update the existing key.
     e->value = value;
   } else {
     // the new is new.
+    // 头插法
     insert(key, value, &table[i], table[i]);
   }
+  pthread_mutex_unlock(&bucketLock[i]);
 
 }
 
@@ -62,11 +72,17 @@ get(int key)
 {
   int i = key % NBUCKET;
 
+  pthread_mutex_lock(&bucketLock[i]);
 
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key) break;
   }
+
+  // 这里虽然返回entry 指针 这样写没问题 因为只有puts gets 操作且不会重
+  // 没有mod del操作 有的话 可以考虑rcu
+  // 
+  pthread_mutex_unlock(&bucketLock[i]);
 
   return e;
 }
@@ -106,6 +122,11 @@ main(int argc, char *argv[])
   double t1, t0;
 
 
+  // initial
+  for (int i = 0; i < NBUCKET; ++i) {
+    pthread_mutex_init(&bucketLock[i], NULL);
+  }
+
   if (argc < 2) {
     fprintf(stderr, "Usage: %s nthreads\n", argv[0]);
     exit(-1);
@@ -122,7 +143,7 @@ main(int argc, char *argv[])
   // first the puts
   //
   t0 = now();
-  for(int i = 0; i < nthread; i++) {
+  for (int i = 0; i < nthread; i++) {
     assert(pthread_create(&tha[i], NULL, put_thread, (void *) (long) i) == 0);
   }
   for(int i = 0; i < nthread; i++) {

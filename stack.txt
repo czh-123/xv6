@@ -1,0 +1,59 @@
+# 暂时把东西记录在这里 周末? 迁移一下
+
+sp 寄存器 存储当前栈帧的底部地址 
+
+s0/fp 寄存器 存储当前栈顶
+
+函数的汇编语言布局: 
+    prologue
+    function body
+    Epollgue
+其中 pro 与 eop部分 : 
+// err 保存部分寄存器内容(caller ? Todo) 回复部分寄存器内容
+构建当前栈帧 
+
+ra
+prev s0/fp
+saved reg
+local var
+
+
+> 其中设置 会sp指向当前函数(stack frame)栈底 fp指向当前函数(stack frame)栈顶 ra
+
+加载数据进寄存器 ret
+
+
+例子:
+
+pro:
+  26:	1141                	addi	sp,sp,-16
+  28:	e406                	sd	ra,8(sp)
+  2a:	e022                	sd	s0,0(sp)
+  2c:	0800                	addi	s0,sp,16
+
+sp fp 存储地址
+
+
+Epollgue
+  ae:	60a2                	ld	ra,8(sp)  # switch overrite了 sp+ 8
+  b0:	6402                	ld	s0,0(sp)
+  b2:	0141                	addi	sp,sp,16
+  b4:	8082                	ret
+
+从当前栈内读取到寄存器 ra s0 恢复sp ret
+
+Todo 说明 为什么uthread可以这么写
+    switch设置完寄存器后 ra 为 thread_a 跳转后执行ra的 prologue，构建当前栈帧。 所以只用设置fp sp即可 构建让pro来做
+
+    线程切换时 保存了什么
+
+    类似于协程， 可以分析一下
+        - 自动让出并切换 在用户态完成
+        - 线程栈固定 不同于 go栈可以增长/收缩
+        - 没有实现一些高级功能: 一些线程可以有自己的heap等
+
+
+
+
+
+

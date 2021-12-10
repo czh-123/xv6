@@ -10,10 +10,27 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
+struct thread_context{
+  uint64     ra;
+  uint64     sp; // 当前栈底
+  uint64     fp; // s0 frame pointer  指向当前栈顶
+  uint64     s1;
+  uint64     s2;
+  uint64     s3;
+  uint64     s4;
+  uint64     s5;
+  uint64     s6;
+  uint64     s7;
+  uint64     s8;
+  uint64     s9;
+  uint64     s10;
+  uint64     s11;
+};
 
 struct thread {
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
+  struct thread_context context; /* context of thread */
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
@@ -39,7 +56,7 @@ thread_schedule(void)
   /* Find another runnable thread. */
   next_thread = 0;
   t = current_thread + 1;
-  for(int i = 0; i < MAX_THREAD; i++){
+  for(int i = 0; i < MAX_THREAD; i++) {
     if(t >= all_thread + MAX_THREAD)
       t = all_thread;
     if(t->state == RUNNABLE) {
@@ -62,6 +79,8 @@ thread_schedule(void)
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
+    // t 保存prev  current保存next
+    thread_switch((uint64)&t->context, (uint64)&next_thread->context);
   } else
     next_thread = 0;
 }
@@ -76,6 +95,15 @@ thread_create(void (*func)())
   }
   t->state = RUNNABLE;
   // YOUR CODE HERE
+  // 设置寄存器? sp a0等?
+  // ra sp  并不对应真实的寄存器
+  // 对应.S 
+  // c除了 asmble 并不能直接控制寄存器 (汇编语言才行) 但可以控制布局 存储要放的数据
+  // .S 控制寄存器的存储
+  t->context.ra = (uint64)func;
+  // sp fp为什么这样设置？
+  t->context.sp = (uint64)&t->stack[STACK_SIZE - 1];
+  t->context.fp = (uint64)&t->stack[STACK_SIZE - 1];
 }
 
 void 

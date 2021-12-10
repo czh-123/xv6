@@ -20,6 +20,7 @@ barrier_init(void)
   assert(pthread_mutex_init(&bstate.barrier_mutex, NULL) == 0);
   assert(pthread_cond_init(&bstate.barrier_cond, NULL) == 0);
   bstate.nthread = 0;
+  bstate.round = 0;
 }
 
 static void 
@@ -30,7 +31,25 @@ barrier()
   // Block until all threads have called barrier() and
   // then increment bstate.round.
   //
-  
+  // 不需要保护吗? 需要
+  pthread_mutex_lock(&bstate.barrier_mutex);
+  // 新一轮循环来时 会增加计数 即使当前循环还没结束 会有什么问题?
+  // 后一轮也不会修改计数? 但是新一轮的可能也会阻塞在cond 然后被上一轮的释放?
+  ++bstate.nthread;
+
+  if (bstate.nthread < nthread) {
+    // printf("round %d nthread %d\n", bstate.round, bstate.nthread);
+    pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex); 
+    // ++bstate.nthread;
+    pthread_mutex_unlock(&bstate.barrier_mutex);
+  } else {
+    // printf("round %d nthread2 :%d\n",bstate.round, bstate.nthread);
+    bstate.nthread = 0;
+    bstate.round++;
+    pthread_mutex_unlock(&bstate.barrier_mutex);
+    pthread_cond_broadcast(&bstate.barrier_cond);
+  }
+
 }
 
 static void *
@@ -42,6 +61,7 @@ thread(void *xa)
 
   for (i = 0; i < 20000; i++) {
     int t = bstate.round;
+    // printf("i : %d t : %d\n", i, t);
     assert (i == t);
     barrier();
     usleep(random() % 100);

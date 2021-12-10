@@ -1,0 +1,8 @@
+# 对同一个bucket 会存在许多冲突
+
+主要在于insert时 `*p = e;`
+多线程时 会导致 table[i] 同时有多个parent指向它，
+但最终只会有一个被选为最终table[i],因此会存在许多miss
+
+
+Todo 之后 尝试下 RCU 算法
