@@ -1,0 +1,69 @@
+memory allocator
+优化 kalloc 
+目前实现: single-list + 一个锁
+
+目标: 每个CPU一个锁 一个list 
+- 考虑某个CPU上没有锁，需要steal
+
+hints
+    每个锁以 kmem 开头，并且init
+
+    NCPU from kernel/param.h
+
+    freerange 会给运行CPU所有free mem
+
+    cpuid 返回当前cpu core id，但需要关闭interrupts 。 使用push_off pop_off 来开关
+
+    看一下 snprintf  kernel/sprintf.c for string formatting ideas
+
+实现:
+    分配NCPU个 kmem，然后每次请求 kmem[cpuid]，不够就steal (cpuid + 1) % NCPU, steal *一个*
+    注意cpuid循环 0 - 1 - 2 - 3 - 4 - 0，
+        没有内存会出现这种情况，此时kalloc_with_cpu 不需要pop_off在acquire之前判断返回
+
+Buffer cache
+
+
+减少bcache的 lock contention
+
+由于  bcache buffers在进程/ CPU间共享，所以 根据block number 创建hash table， 每个bucket 加锁
+
+
+hints
+    block cache 8.1 - 8.3
+    fixed-size hash table是ok的，但是最好用素数
+    hash table中查找 以及 为buffer分配entry需要 atomic
+    移除buffer list除了time-stamp buffer。
+        这样的话 brelse不用请求锁，bget按time选择block
+    serialize eviction in bget
+    某些时候需要持有两个锁，避免死锁(加锁 放锁顺序)
+    rehash时候 hash到原来bucket可能导致死锁
+    debugging tips:  可以先用bache.lock
+
+实现
+  并没有增加时间戳(也不太懂why 留个Todo)，只是在原来基础修修改改
+    bcache 有BUCKET_NUM(13)份，保留lru逻辑
+    最大改动 bget，当前bucket没有空闲的buf时，遍历所有bucket查找
+        找到后: 将buf从bucket_2移除，移动到当前bucket
+    belse无改动
+
+可能问题:
+    blockno 应该在bucket1，但被偷到了bucket2，此时向bucket1请求时两种情况
+    1，从ref = 0 的新分一个buf，这样buf会被cache两份
+    2，遍历bucket查找，此时还是可能会新分一个buf
+
+优化:
+    list写法要考虑 只保留一个next 遍历就行
+    如何应对上面情况
+
+
+Todo
+    增加时间戳的写法
+    bio的背景，是干什么的 
+        疑惑当两个进程/线程获得后，会有race condition并且写回时会覆盖
+    
+
+
+
+
+

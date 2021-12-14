@@ -12,11 +12,17 @@
 
 void test1(void);
 void test2(void);
+int countfree();
 char buf[SZ];
 
 int
 main(int argc, char *argv[])
 {
+  /*
+  int free0 = countfree();
+  int n = (PHYSTOP-KERNBASE)/PGSIZE;
+  printf("countfree !!!!  %d  out of  %d",free0, n);
+  */
   test1();
   test2();
   exit(0);
@@ -63,7 +69,7 @@ void test1(void)
     }
   }
 
-  for(int i = 0; i < NCHILD; i++){
+  for(int i = 0; i < NCHILD; i++) {
     wait(0);
   }
   printf("test1 results:\n");
@@ -83,7 +89,7 @@ countfree()
   uint64 sz0 = (uint64)sbrk(0);
   int n = 0;
 
-  while(1){
+  while(1) {
     uint64 a = (uint64) sbrk(4096);
     if(a == 0xffffffffffffffff){
       break;
@@ -111,6 +117,7 @@ void test2() {
     if(i % 10 == 9)
       printf(".");
     if(free1 != free0) {
+      // bug
       printf("test2 FAIL: losing pages\n");
       exit(-1);
     }
