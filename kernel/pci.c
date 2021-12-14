@@ -14,6 +14,8 @@
 void
 pci_init()
 {
+  // 对应物理地址
+
   // we'll place the e1000 registers at this address.
   // vm.c maps this range.
   uint64 e1000_regs = 0x40000000L;
@@ -23,7 +25,7 @@ pci_init()
   uint32  *ecam = (uint32 *) 0x30000000L;
   
   // look at each possible PCI device on bus 0.
-  for(int dev = 0; dev < 32; dev++){
+  for(int dev = 0; dev < 32; dev++) {
     int bus = 0;
     int func = 0;
     int offset = 0;

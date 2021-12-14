@@ -11,8 +11,11 @@
 #include "net.h"
 #include "defs.h"
 
+// Todo 记录一下 这里的宏高效 好用
 static uint32 local_ip = MAKE_IP_ADDR(10, 0, 2, 15); // qemu's idea of the guest IP
+
 static uint8 local_mac[ETHADDR_LEN] = { 0x52, 0x54, 0x00, 0x12, 0x34, 0x56 };
+// 广播地址
 static uint8 broadcast_mac[ETHADDR_LEN] = { 0xFF, 0XFF, 0XFF, 0XFF, 0XFF, 0XFF };
 
 // Strips data from the start of the buffer and returns a pointer to it.
