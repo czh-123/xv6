@@ -377,11 +377,14 @@ iunlockput(struct inode *ip)
 static uint
 bmap(struct inode *ip, uint bn)
 {
+  // bn 偏移地址
+  // printf("222 : %d\n", bn);
   uint addr, *a;
   struct buf *bp;
 
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
+      // 没有分配
       ip->addrs[bn] = addr = balloc(ip->dev);
     return addr;
   }
@@ -390,15 +393,82 @@ bmap(struct inode *ip, uint bn)
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[NDIRECT]) == 0)
+      // 分配indirect 对应page
       ip->addrs[NDIRECT] = addr = balloc(ip->dev);
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
-    if((addr = a[bn]) == 0){
+    if ((addr = a[bn]) == 0) {
+      // 跳转页没有 再次分配
       a[bn] = addr = balloc(ip->dev);
       log_write(bp);
     }
     brelse(bp);
+    // printf("222 : %d\n", bn);
     return addr;
+  }
+
+  bn -= NINDIRECT;
+  uint sindex = bn / NINDIRECT;
+  uint tindex = bn % NINDIRECT;
+
+  struct buf *bfirst;
+  struct buf *bsecond;
+  uint* b;
+
+  if (bn < NDOUBLY) {
+    // printf("111 : %d\n", bn);
+    // doubly
+    // 用个宏是不是更好
+    if((addr = ip->addrs[NDIRECT + 1]) == 0)
+      // 分配indirect 对应page
+      ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
+    // printf("222 \n");
+    bfirst = bread(ip->dev, addr);
+    // printf("333\n");
+    a = (uint*)bfirst->data;
+
+    if ((a[sindex]) == 0) {
+      // 跳转页没有 再次分配
+      // printf("22222\n");
+      a[sindex] = addr = balloc(ip->dev);
+      log_write(bfirst);
+      // log_write(bfirst);
+      // printf("aaaaaaaa\n");
+      bsecond = bread(ip->dev, addr);
+
+      b = (uint*)bsecond->data;
+
+      if (b[tindex] == 0) {
+        // 最终未分配
+        b[tindex] = addr = balloc(ip->dev);
+        log_write(bsecond);
+        // printf("3333333\n");
+        brelse(bsecond);
+        brelse(bfirst);
+        return addr;
+      } else {
+        panic("unexpected fs error");
+      }
+    } else {
+      // 到相应block寻找最后一个block
+      // printf("1111s1\n");
+      bsecond = bread(ip->dev, a[sindex]);
+      b = (uint*)bsecond->data;
+
+      if (b[tindex] == 0) {
+        // printf("222222222\n");
+        b[tindex] = addr = balloc(ip->dev);
+        log_write(bsecond);
+        brelse(bsecond);
+        brelse(bfirst);
+        return addr;
+      } else {
+        addr = b[tindex];
+        brelse(bsecond);
+        brelse(bfirst);
+        return addr;
+      }
+    }
   }
 
   panic("bmap: out of range");
@@ -491,6 +561,7 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 
   if(off > ip->size || off + n < off)
     return -1;
+  // !!!! MAXFILE忘改了
   if(off + n > MAXFILE*BSIZE)
     return -1;
 

@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "defs.h": "c",
+        "chrono": "c",
+        "cmath": "c",
+        "locale": "c",
+        "e1000_dev.h": "c",
+        "spinlock.h": "c",
+        "sleeplock.h": "c",
+        "ostream": "c",
+        "syscall.h": "c"
+    }
+}

@@ -58,6 +58,7 @@ initlog(int dev, struct superblock *sb)
     panic("initlog: too big logheader");
 
   initlock(&log.lock, "log");
+  // 根据superblock初始化配置
   log.start = sb->logstart;
   log.size = sb->nlog;
   log.dev = dev;

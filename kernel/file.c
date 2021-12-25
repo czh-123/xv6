@@ -168,11 +168,13 @@ filewrite(struct file *f, uint64 addr, int n)
 
       if(r != n1){
         // error from writei
+        printf("error from writei %d\n",r);
         break;
       }
       i += r;
     }
     ret = (i == n ? n : -1);
+    // printf("ret %d\n", ret);
   } else {
     panic("filewrite");
   }
