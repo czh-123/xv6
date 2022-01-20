@@ -1,0 +1,12 @@
+e1000 是网卡，本次试验将： 实现网卡驱动
+主要是e1000_transmit() and e1000_recv()，用来发送/接收包
+
+DMA：网卡会直接读/写 包 到 / from 内存
+
+会有两个buffer，receive transmit
+
+
+
+这块许多东西还是不是很明白
+网卡  DMA 
+
