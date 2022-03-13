@@ -654,3 +654,20 @@ procdump(void)
     printf("\n");
   }
 }
+
+#define NVMA 16
+
+struct vma vma_list[NVMA];
+
+struct vma* vma_alloc() {
+  for (int i = 0; i < NVMA; ++i) {
+    // deadlock ?
+    acquire(&vma_list[i].lock);
+    if (vma_list[i].length == 0) {
+      return &vma_list[i];
+    } else {
+      release(&vma_list[i].lock);
+    }
+  }
+  panic("vma allocfailed");
+}

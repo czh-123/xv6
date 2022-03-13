@@ -83,7 +83,8 @@ argstr(int n, char *buf, int max)
   return fetchstr(addr, buf, max);
 }
 
-extern uint64 sys_chdir(void);
+// extern is default used  implicitly 
+uint64 sys_chdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_dup(void);
 extern uint64 sys_exec(void);
@@ -104,6 +105,10 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
+extern uint64 sys_mmap(void);
+extern uint64 sys_munmap(void);
+
+
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -127,6 +132,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_mmap]    sys_mmap,
+[SYS_munmap]  sys_munmap,
 };
 
 void
@@ -143,4 +150,35 @@ syscall(void)
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
   }
+}
+
+/* 
+void *mmap(void *addr, int length, int prot, int flags,
+           int fd, int offset);
+int munmap(void *addr, int length);
+*/
+/* 
+find an unused region in the process's address space in which to map the file,
+and add a VMA to the process's table of mapped regions.
+The VMA should contain a pointer to a struct file for the file being mapped;
+mmap should increase the file's reference count so that the structure doesn't disappear when the file is closed (hint: see filedup).
+*/
+uint64 sys_mmap(void) {
+  uint64 addr;
+  int length, port, flags, fd, offset;
+
+  if(argaddr(0, &addr) < 0)
+    return -1;
+  if (argint(1, &length) < 0) {
+    return -1;
+  }
+  if (argint(2, &port) < 0 || argint(3, &flags) < 0
+      || argint(4, &fd) < 0 || argint(5, &offset) < 0) {
+    return -1;
+  }
+  return 0;
+}
+
+uint64 sys_munmap(void) {
+  return 0;
 }

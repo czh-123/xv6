@@ -82,6 +82,20 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// vma for mmap
+struct vma {
+  uint64 start;
+  uint64 end;
+  uint64 length; // 0 not used
+  uint64 off;
+  int permission;
+  int flags;
+  struct file *file_ptr;
+  struct vma *next_vma;
+  struct spinlock lock;
+};
+
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -95,6 +109,7 @@ struct proc {
 
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
+  struct vma *vma;
 
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
