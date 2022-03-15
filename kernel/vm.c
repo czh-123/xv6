@@ -5,7 +5,11 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
-
+#include "spinlock.h"
+#include "proc.h"
+#include "fcntl.h"
+#include "sleeplock.h"
+#include "file.h"
 /*
  * the kernel's page table.
  */
@@ -431,4 +435,192 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+void
+writeback(struct vma* v, uint64 addr, int n)
+{
+  if(!(v->permission & PTE_W) || (v->flags & MAP_PRIVATE)) // no need to writeback
+    return;
+
+  if((addr % PGSIZE) != 0)
+    panic("unmap: not aligned");
+
+  printf("starting writeback: %p %d\n", addr, n);
+
+  struct file* f = v->file_ptr;
+
+  int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
+  int i = 0;
+  while(i < n){
+    int n1 = n - i;
+    if(n1 > max)
+      n1 = max;
+
+    begin_op();
+    ilock(f->ip);
+    printf("%p %d %d\n",addr + i, v->off + v->start - addr, n1);
+    int r = writei(f->ip, 1, addr + i, v->off + v->start - addr + i, n1);
+    iunlock(f->ip);
+    end_op();
+    i += r;
+  }
+}
+
+int
+mmap_handler(uint64 va, int scause)
+{
+  struct proc *p = myproc();
+  struct vma* v = p->vma;
+  while(v != 0){
+    if(va >= v->start && va < v->end){
+      break;
+    }
+    //printf("%p\n", v);
+    v = v->next_vma;
+  }
+
+  if(v == 0) return -1; // not mmap addr
+  if(scause == 13 && !(v->permission & PTE_R)) return -2; // unreadable vma
+  if(scause == 15 && !(v->permission & PTE_W)) return -3; // unwritable vma
+
+  // load page from file
+  va = PGROUNDDOWN(va);
+  char* mem = kalloc();
+  if (mem == 0) return -4; // kalloc failed
+  
+  memset(mem, 0, PGSIZE);
+
+  if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, v->permission) != 0){
+    kfree(mem);
+    return -5; // map page failed
+  }
+
+  struct file *f = v->file_ptr;
+  ilock(f->ip);
+  readi(f->ip, 0, (uint64)mem, v->off + va - v->start, PGSIZE);
+  iunlock(f->ip);
+  return 0;
+}
+
+
+/* 
+void *mmap(void *addr, int length, int prot, int flags,
+           int fd, int offset);
+int munmap(void *addr, int length);
+*/
+/* 
+find an unused region in the process's address space in which to map the file,
+and add a VMA to the process's table of mapped regions.
+The VMA should contain a pointer to a struct file for the file being mapped;
+mmap should increase the file's reference count so that the structure doesn't disappear when the file is closed (hint: see filedup).
+*/
+uint64 sys_mmap(void) {
+  uint64 addr;
+  int length, prot, flags, fd, offset;
+
+  if(argaddr(0, &addr) < 0)
+    return -1;
+  if (argint(1, &length) < 0) {
+    return -1;
+  }
+  if (argint(2, &prot) < 0 || argint(3, &flags) < 0
+      || argint(4, &fd) < 0 || argint(5, &offset) < 0) {
+    return -1;
+  }
+  // alloc vam for proc lazy alloc
+  // 2
+  struct proc *p = myproc();
+  struct file* f = p->ofile[fd];
+
+  int pte_flag = PTE_U;
+  if (prot & PROT_WRITE) {
+    if(!f->writable && !(flags & MAP_PRIVATE))
+      return -1; // map to a unwritable file with PROT_WRITE
+    pte_flag |= PTE_W;
+  }
+  if (prot & PROT_READ) {
+    if(!f->readable)
+      return -1; // map to a unreadable file with PROT_READ
+    pte_flag |= PTE_R;
+  }
+
+  struct vma* v = vma_alloc();
+  v->permission = pte_flag;
+  v->length = length;
+  v->off = offset;
+  v->file_ptr = myproc()->ofile[fd];
+  v->flags = flags;
+  filedup(f);
+  struct vma* pv = p->vma;
+  if(pv == 0){
+    // why start with 8?
+    v->start = 0;
+    v->end = v->start + length;
+    p->vma = v;
+  }else{
+    while(pv->next_vma)
+      pv = pv->next_vma;
+    v->start = PGROUNDUP(pv->end);
+    v->end = v->start + length;
+    pv->next_vma = v;
+    v->next_vma = 0;
+  }
+  addr = v->start;
+  printf("mmap: [%p, %p)\n", addr, v->end);
+
+  release(&v->lock);
+  return addr;
+
+  return 0;
+}
+
+
+uint64 sys_munmap(void) {
+  uint64 addr;
+  int length;
+  if(argaddr(0, &addr) < 0 || argint(1, &length) < 0){
+    return -1;
+  }
+
+  struct proc *p = myproc();
+  struct vma *v = p->vma;
+  struct vma *pre = 0;
+  while(v != 0){
+    if(addr >= v->start && addr < v->end) break; // found
+    pre = v;
+    v = v->next_vma;
+  }
+
+  if(v == 0) return -1; // not mapped
+  printf("munmap: %p %d\n", addr, length);
+  if(addr != v->start && addr + length != v->end) panic("munmap middle of vma");
+
+  if(addr == v->start){
+    writeback(v, addr, length);
+    uvmunmap(p->pagetable, addr, length / PGSIZE, 1);
+    if(length == v->length){
+      // free all
+      fileclose(v->file_ptr);
+      if(pre == 0){
+        p->vma = v->next_vma; // head
+      }else{
+        pre->next_vma = v->next_vma;
+        v->next_vma = 0;
+      }
+      acquire(&v->lock);
+      v->length = 0;
+      release(&v->lock);
+    }else{
+      // free head
+      v->start -= length;
+      v->off += length;
+      v->length -= length;
+    }
+  }else{
+    // free tail
+    v->length -= length;
+    v->end -= length;
+  }
+  return 0;
 }

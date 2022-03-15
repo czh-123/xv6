@@ -5,7 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "syscall.h"
+
+#include "fcntl.h"
 #include "defs.h"
+
 
 // Fetch the uint64 at addr from the current process.
 int
@@ -152,33 +155,3 @@ syscall(void)
   }
 }
 
-/* 
-void *mmap(void *addr, int length, int prot, int flags,
-           int fd, int offset);
-int munmap(void *addr, int length);
-*/
-/* 
-find an unused region in the process's address space in which to map the file,
-and add a VMA to the process's table of mapped regions.
-The VMA should contain a pointer to a struct file for the file being mapped;
-mmap should increase the file's reference count so that the structure doesn't disappear when the file is closed (hint: see filedup).
-*/
-uint64 sys_mmap(void) {
-  uint64 addr;
-  int length, port, flags, fd, offset;
-
-  if(argaddr(0, &addr) < 0)
-    return -1;
-  if (argint(1, &length) < 0) {
-    return -1;
-  }
-  if (argint(2, &port) < 0 || argint(3, &flags) < 0
-      || argint(4, &fd) < 0 || argint(5, &offset) < 0) {
-    return -1;
-  }
-  return 0;
-}
-
-uint64 sys_munmap(void) {
-  return 0;
-}

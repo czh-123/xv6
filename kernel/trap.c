@@ -29,6 +29,9 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+
+
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -65,7 +68,13 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } else if (r_scause() == 15 || r_scause() == 13) {
+    if(mmap_handler(r_stval(), r_scause()) != 0){
+      printf("page fault\n");
+      p->killed = 1;
+    }
+  }
+  else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
