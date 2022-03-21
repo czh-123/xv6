@@ -69,12 +69,13 @@ usertrap(void)
 
     syscall();
   } else if (r_scause() == 15 || r_scause() == 13) {
-    if(mmap_handler(r_stval(), r_scause()) != 0){
-      printf("page fault\n");
+    // panic("111");
+    int mmap_res = mmap_handler(r_stval(), r_scause());
+    if(mmap_res != 0){
+      printf("page fault  \n");
       p->killed = 1;
     }
-  }
-  else if((which_dev = devintr()) != 0){
+  } else if ((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
