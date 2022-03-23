@@ -56,9 +56,12 @@ kfree(void *pa)
 
   // !!!
   r = (struct run*)pa;
+  // printf("r: %d \n", *(int*)r);
+  // printf("next: %d\n", r->next);
 
   acquire(&kmem.lock);
   r->next = kmem.freelist;
+  // printf("new next: %d\n", r->next);
   kmem.freelist = r;
   release(&kmem.lock);
 }
@@ -92,17 +95,4 @@ kgetFree(void) {
     p = p->next;
   }
   return num * PGSIZE;
-  /*
-  struct run *r;
-
-  uint64 res = 0;
-
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if(r)
-     res = PHYSTOP - (uint64)r;
-  release(&kmem.lock);
-
-  return res;
-  */
 }
