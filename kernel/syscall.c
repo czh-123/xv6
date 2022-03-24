@@ -7,6 +7,8 @@
 #include "syscall.h"
 #include "defs.h"
 
+
+
 // Fetch the uint64 at addr from the current process.
 int
 fetchaddr(uint64 addr, uint64 *ip)
@@ -140,6 +142,33 @@ static char *name_of_sys_call[] = {
   "uptime", "open", "write", "mknod", "unlink", "link", "mkdir", "close", "trace", "sysinfo"
 };
 
+
+void print_syscall_arg(int mask, int syscall_num) {
+  if (((1 << syscall_num) & mask) == 0) {
+    return;
+  }
+  if (syscall_num == SYS_exit || syscall_num == SYS_kill) {
+    int n;
+    if(argint(0, &n) < 0)
+      return ;
+    printf("syscall %s arg: %d \n", name_of_sys_call[syscall_num - 1], n);
+  } else if (syscall_num == SYS_pipe || syscall_num == SYS_wait) {
+      uint64 fdarray; // user pointer to array of two integers
+      if(argaddr(0, &fdarray) < 0)
+        return ;
+      printf("syscall %s arg : %llu \n", name_of_sys_call[syscall_num - 1], fdarray);
+  } else if (syscall_num == SYS_read) {
+      struct file *f;
+      int n;
+      uint64 p;
+
+      if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argaddr(1, &p) < 0)
+        return ;
+      printf("syscall %s arg : %p, %d, %d \n", name_of_sys_call[syscall_num - 1], f, p, n);
+  }
+}
+
+
 void
 syscall(void)
 {
@@ -148,6 +177,8 @@ syscall(void)
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // 打印参数
+    print_syscall_arg(p->mask, num);
     p->trapframe->a0 = syscalls[num]();
     // do sys_call
     // print here

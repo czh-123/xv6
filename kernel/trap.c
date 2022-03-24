@@ -110,6 +110,7 @@ usertrapret(void)
   // to get to user space.
   
   // set S Previous Privilege mode to User.
+  // TODO 确认sret会修改sie为spie  spie设为1  那么这里有必要吗!!
   unsigned long x = r_sstatus();
   x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
   x |= SSTATUS_SPIE; // enable interrupts in user mode
@@ -143,7 +144,7 @@ kerneltrap()
   if(intr_get() != 0)
     panic("kerneltrap: interrupts enabled");
 
-  if((which_dev = devintr()) == 0){
+  if((which_dev = devintr()) == 0) {
     printf("scause %p\n", scause);
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");
