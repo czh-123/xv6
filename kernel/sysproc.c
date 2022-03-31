@@ -120,7 +120,27 @@ sys_sysinfo(void)
   info.freemem = kgetFree();
   //计算进程数量
   info.nproc = getProcNum();
- //拷贝info到用户空间
+  // 计算load average 省事一点 打印出来
+  /*
+  printf("cal load average \n");
+  float num = get_load_average();
+  printf("when call sysinfo, load average %f \n", num);
+  */
+  int proc = getRunnableNum();
+  /*
+  int cpu_num = 8;
+  // float会直接panic 但double可以? TODO
+  double load_average = 0;
+  if (proc < cpu_num) {
+    // printf("asdasd %d  %d \n", proc, load_average);
+    load_average = 0;
+  } else {
+    load_average = ((double)(proc - cpu_num)) / cpu_num;
+  }
+  */
+  // printf 不支持%f
+  printf("load average %d \n", proc);
+ // 拷贝info到用户空间
   if (copyout(p->pagetable, addr, (char*)&info, sizeof(info)) < 0)
     return -1;
   return 0;

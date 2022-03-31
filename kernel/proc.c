@@ -598,12 +598,24 @@ kill(int pid)
   return -1;
 }
 
-// get num of UnUsed proc
+// get num of NOT UnUsed proc
 int
 getProcNum(void) {
+  printf("cal proc num \n");
   int cnt = 0;
   for (int i = 0; i < NPROC; ++i) {
     if (proc[i].state != UNUSED) {
+      ++cnt;
+    }
+  }
+  return cnt;
+}
+
+int
+getRunnableNum(void) {
+  int cnt = 0;
+  for (int i = 0; i < NPROC; ++i) {
+    if (proc[i].state == RUNNABLE) {
       ++cnt;
     }
   }
@@ -639,6 +651,19 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
     return 0;
   }
 }
+
+// 再次调用getProcNum会陷入panic kernaltrap
+float get_load_average() {
+  int cpu_num = NCPU;
+  int proc =  getProcNum();
+  if (proc < cpu_num) {
+    return 0;
+  } else {
+    return ((float)(proc - cpu_num)) / cpu_num;
+  }
+}
+
+
 
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
