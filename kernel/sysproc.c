@@ -126,8 +126,8 @@ sys_sysinfo(void)
   float num = get_load_average();
   printf("when call sysinfo, load average %f \n", num);
   */
-  int proc = getRunnableNum();
-  /*
+  // int proc = getRunnableNum();
+  int proc = info.nproc;
   int cpu_num = 8;
   // float会直接panic 但double可以? TODO
   double load_average = 0;
@@ -137,9 +137,9 @@ sys_sysinfo(void)
   } else {
     load_average = ((double)(proc - cpu_num)) / cpu_num;
   }
-  */
+  
   // printf 不支持%f
-  printf("load average %d \n", proc);
+  printf("load average %d \n", load_average);
  // 拷贝info到用户空间
   if (copyout(p->pagetable, addr, (char*)&info, sizeof(info)) < 0)
     return -1;
