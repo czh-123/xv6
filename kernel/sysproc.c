@@ -43,12 +43,13 @@ sys_sbrk(void)
 {
   int addr;
   int n;
-
+  // printf("sbrk before sz : %d \n", myproc()->sz);
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
   if(growproc(n) < 0)
     return -1;
+  // printf("sbrk after sz : %d \n", myproc()->sz);
   return addr;
 }
 

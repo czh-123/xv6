@@ -321,6 +321,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   // 堆 栈内核栈怎么处理？
   // 内核data text在之前的proc_pagetable() 处理
   // 寄存器在之后memmove trapframe实现
+  printf("sz %d\n",sz);
   for(i = 0; i < sz; i += PGSIZE) {
     assert((i % PGSIZE) == 0);
     if((pte = walk(old, i, 0)) == 0)
